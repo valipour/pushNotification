@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// version 1
 var (
 	username  = "کاربر"
 	mu        sync.RWMutex
