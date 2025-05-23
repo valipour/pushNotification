@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -22,6 +20,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+// ارسال پیام به همه کلاینت‌های متصل
 func broadcast(message string) {
 	clientsMu.Lock()
 	defer clientsMu.Unlock()
@@ -35,6 +34,7 @@ func broadcast(message string) {
 	}
 }
 
+// تغییر نام و ارسال نوتیف
 func setNameHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "فقط POST مجاز است", http.StatusMethodNotAllowed)
@@ -51,11 +51,12 @@ func setNameHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Unlock()
 
 	msg := fmt.Sprintf("نام جدید تنظیم شد: %s", name)
-	go broadcast(msg)
+	go broadcast(msg) // فقط همینجا نوتیف می‌فرستیم
 
 	fmt.Fprintln(w, msg)
 }
 
+// مدیریت اتصال WebSocket
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -68,16 +69,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clients[conn] = true
 	clientsMu.Unlock()
 
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Duration(rand.Intn(5)+1) * time.Second)
-
-		mu.RLock()
-		name := username
-		mu.RUnlock()
-
-		msg := fmt.Sprintf("سلام %s! نوتیف #%d - %s", name, i+1, time.Now().Format("15:04:05"))
-		if err := conn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
-			log.Println("خطا در ارسال نوتیف:", err)
+	// اتصال رو باز نگه می‌داریم ولی منتظر پیام از سمت کلاینت نیستیم
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
 			break
 		}
 	}
@@ -88,11 +82,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
 	http.HandleFunc("/set-name", setNameHandler)
 	http.HandleFunc("/ws", wsHandler)
 
-	fmt.Println("سرور روی http://localhost:8080")
+	fmt.Println("سرور روی http://localhost:8080 اجرا شد")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
